@@ -1,0 +1,33 @@
+{
+  "canisters": {
+    "quikdb-cannister-manager-backend": {
+      "main": "src/quikdb-cannister-manager-backend/main.mo",
+      "type": "motoko"
+    },
+    "quikdb-cannister-manager-frontend": {
+      "dependencies": [
+        "quikdb-cannister-manager-backend"
+      ],
+      "source": [
+        "src/quikdb-cannister-manager-frontend/dist"
+      ],
+      "type": "assets",
+      "workspace": "quikdb-cannister-manager-frontend"
+    }
+  },
+  "defaults": {
+    "bitcoin": {
+      "enabled": true,
+      "log_level": "info",
+      "nodes": [
+        "127.0.0.1:18444"
+      ]
+    },
+    "build": {
+      "args": "",
+      "packtool": ""
+    }
+  },
+  "output_env_file": ".env",
+  "version": 1
+}
