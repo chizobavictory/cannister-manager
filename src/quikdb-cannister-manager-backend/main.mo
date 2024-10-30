@@ -3,8 +3,13 @@ import HashMap "mo:base/HashMap";
 import Time "mo:base/Time";
 import Nat "mo:base/Nat";
 import Result "mo:base/Result";
-import ErrorTypes "ErrorTypes.module";
-import CanisterInfo "Project.module";
+
+import Project "models/Project.module";
+import Database "models/Database.module";
+import DataGroup "models/DataGroup.module";
+import GroupItemStore "models/Item.module";
+import idGen "models/IdGen.module";
+import ErrorTypes "models/ErrorTypes.module";
 
 // Define CanisterInfo for storing metadata
 public type CanisterInfo = {
