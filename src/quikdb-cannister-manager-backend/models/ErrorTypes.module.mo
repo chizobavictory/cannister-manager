@@ -1,34 +1,19 @@
 module {
-    public type QuikDBError = {
-    #ProjectNotFound: Text;
-    #DataGroupNotFound: Text;
-    #ItemNotFound: Text;
-    #ValidationError: Text;
-    #EncryptionError: Text;
-    #GeneralError: Text;
-};
+  public type QuikDBError = {
+    #CanisterInfoNotFound : Text;
+    #GeneralError : Text;
+    #ItemNotFound : Text;
+    #ProjectNotFound : Text;
+    #ValidationError : Text;
+  };
 
-    public func errorMessage(error: QuikDBError): Text {
-    switch (error) {
-        case (#ProjectNotFound(msg)) { 
-            "Project not found: " # msg 
-        };
-        case (#DataGroupNotFound(msg)) { 
-            "DataGroup not found: " # msg 
-        };
-        case (#ItemNotFound(msg)) { 
-            "Item not found: " # msg 
-        };
-        case (#ValidationError(msg)) { 
-            "Validation error: " # msg 
-        };
-        case (#EncryptionError(msg)) { 
-            "Encryption error: " # msg 
-        };
-        case (#GeneralError(msg)) { 
-            "Error: " # msg 
-        };
+  public func errorMessage(err: QuikDBError) : Text {
+    switch err {
+      case (#CanisterInfoNotFound(msg)) msg;
+      case (#GeneralError(msg)) msg;
+      case (#ItemNotFound(msg)) msg;
+      case (#ProjectNotFound(msg)) msg;
+      case (#ValidationError(msg)) msg;
     }
-}
-
+  }
 }
