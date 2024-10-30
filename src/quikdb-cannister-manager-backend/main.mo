@@ -1,9 +1,10 @@
 import Principal "mo:base/Principal";
+import Cycles "mo:base/ExperimentalCycles";
+import Error "mo:base/Error";
 import HashMap "mo:base/HashMap";
 import Time "mo:base/Time";
 import Nat "mo:base/Nat";
 import Result "mo:base/Result";
-import Cycles "mo:base/ExperimentalCycles";
 
 import Project "models/Project.module";
 import Database "models/Database.module";
@@ -11,33 +12,32 @@ import GroupItemStore "models/Item.module";
 import idGen "models/IdGen.module";
 import ErrorTypes "models/ErrorTypes.module";
 import CanisterInfo "models/CanisterInfo.module";
-import IC "ic-management-interface";
 
-// Main actor managing canisters
+// Import the IC management interface
+import Interface "ic-management-interface";
+
 actor QuikDB {
+  // The IC Management Canister ID
+  let IC = "aaaaa-aa";
+  let ic = actor (IC) : Interface.Self;
 
   // Stable variable to store canister information
   stable var canisterRegistry: HashMap.HashMap<Text, CanisterInfo> = HashMap.HashMap<Text, CanisterInfo>();
 
-  // Create a new canister, validate the request, and store canister info
-  public shared func createCanister(name: Text, initialCycles: Nat, memory: Nat, owner: Principal) : async Result.Result<Text, ErrorTypes.QuikDBError> {
-    // Step 1: Validate the request (authentication and quota check)
-    if (/* quota exceeded */ false) {
-      return #err(ErrorTypes.QuikDBError("Quota exceeded"));
-    };
+  // Stores the current canister principal for operations
+  var canister_principal: Text = "";
 
-    // Step 2: Interact with ICP to create the canister, allocating cycles
-    Cycles.add(initialCycles);  // Add the initial cycles
+  // Create a new canister and allocate cycles
+  public shared func createCanister(name: Text, initialCycles: Nat, memory: Nat, owner: Principal): async Result.Result<Text, ErrorTypes.QuikDBError> {
+    Cycles.add(initialCycles);
 
-    let create_result = await IC.create_canister({
-      settings = null;
-    });
+    // Call IC to create a new canister
+    let newCanister = await ic.create_canister({ settings = null });
 
-    let canister_id = create_result.canister_id;
+    canister_principal := Principal.toText(newCanister.canister_id);
 
-    // Step 3: Store canister details
     let canisterInfo: CanisterInfo = {
-      id = canister_id;
+      id = canister_principal;
       owner = owner;
       memory = memory;
       cycles = initialCycles;
@@ -45,75 +45,88 @@ actor QuikDB {
       allocated_to = null;
     };
 
-    await storeCanister(owner, Principal.toText(canister_id), canisterInfo);
+    // Store the canister information in the registry
+    await storeCanister(owner, canister_principal, canisterInfo);
 
-    // Step 4: Return the canister ID and its configuration
-    return #ok(Principal.toText(canister_id));
+    return #ok(canister_principal);
   };
 
   // Store canister information in the registry
-  public func storeCanister(owner: Principal, canisterId: Text, info: CanisterInfo) : async () {
+  public func storeCanister(owner: Principal, canisterId: Text, info: CanisterInfo): async () {
     canisterRegistry.put(canisterId, info);
   };
 
   // Retrieve canister information by ID
-  public func getCanisterInfo(canisterId: Text) : async ?CanisterInfo {
+  public func getCanisterInfo(canisterId: Text): async ?CanisterInfo {
     return canisterRegistry.get(canisterId);
   };
 
-  // Allocate a canister to a user or project
-  public shared func allocateCanister(canisterId: Text, allocatedTo: Text) : async Result.Result<Text, ErrorTypes.QuikDBError> {
-    let canisterInfo = await getCanisterInfo(canisterId);
-
-    switch canisterInfo {
-      case (?info) {
-        let updatedInfo = { info with allocated_to = ?allocatedTo };
-        canisterRegistry.put(canisterId, updatedInfo);
-        return #ok("Canister allocated successfully");
-      };
-      case null {
-        return #err(ErrorTypes.QuikDBError("Canister not found"));
-      };
-    };
-  };
-
-  // Retrieve all canisters allocated to a specific owner
-  public shared query func getAllocatedCanisters(owner: Principal) : async [CanisterInfo] {
-    return canisterRegistry.values().filter(func(info) { info.owner == owner });
-  };
-
-  // Update a canister's memory or cycles
-  public shared func updateCanister(canisterId: Text, newMemory: Nat, newCycles: Nat) : async Result.Result<Text, ErrorTypes.QuikDBError> {
-    let canisterInfo = await getCanisterInfo(canisterId);
-    switch canisterInfo {
-      case (?info) {
-        let updatedInfo = { info with memory = newMemory; cycles = newCycles };
-        canisterRegistry.put(canisterId, updatedInfo);
-        return #ok("Canister updated successfully");
-      };
-      case null {
-        return #err(ErrorTypes.QuikDBError("Canister not found"));
-      };
-    };
-  };
-
-  // Get the status of a canister (interacts with ICP)
-  public shared func getCanisterStatus(canisterId: Text) : async Result.Result<IC.CanisterStatus, ErrorTypes.QuikDBError> {
-    let canisterPrincipal = Principal.fromText(canisterId);
-    let status = await IC.canister_status({ canister_id = canisterPrincipal });
-    return #ok(status);
-  };
-
-  // Query to retrieve allocated canisters by owner
-  public shared query func getCanisterInfoByOwner(owner: Principal) : async [CanisterInfo] {
-    return canisterRegistry.values().filter(func(info) { info.owner == owner });
+  // Retrieve canister status
+  public shared func canisterStatus(): async* () {
+    let canister_id = Principal.fromText(canister_principal);
+    let canisterStatus = await ic.canister_status({ canister_id });
+    return canisterStatus;
   };
 
   // Deposit cycles into a canister
-  public shared func depositCycles(canisterId: Text, amount: Nat) : async Result.Result<Text, ErrorTypes.QuikDBError> {
-    let canisterPrincipal = Principal.fromText(canisterId);
-    Cycles.add(amount);  // Add the cycles to be deposited
-    await IC.deposit_cycles({ canister_id = canisterPrincipal });
-    return #ok("Cycles deposited successfully");
-  }
+  public shared func depositCycles(amount: Nat): async* () {
+    Cycles.add(amount);
+    let canister_id = Principal.fromText(canister_principal);
+    await ic.deposit_cycles({ canister_id });
+  };
+
+  // Update the settings of a canister
+  public shared func updateSettings(controllers: [Principal], freezingThreshold: Nat): async* () {
+    let settings: Interface.canister_settings = {
+      controllers = ?controllers;
+      compute_allocation = null;
+      memory_allocation = null;
+      freezing_threshold = ?freezingThreshold;
+    };
+
+    let canister_id = Principal.fromText(canister_principal);
+    await ic.update_settings({ canister_id; settings });
+  };
+
+  // Uninstall code from a canister
+  public shared func uninstallCode(): async* () {
+    let canister_id = Principal.fromText(canister_principal);
+    await ic.uninstall_code({ canister_id });
+  };
+
+  // Stop a running canister
+  public shared func stopCanister(): async* () {
+    let canister_id = Principal.fromText(canister_principal);
+    await ic.stop_canister({ canister_id });
+  };
+
+  // Start a stopped canister
+  public shared func startCanister(): async* () {
+    let canister_id = Principal.fromText(canister_principal);
+    await ic.start_canister({ canister_id });
+  };
+
+  // Delete a stopped canister
+  public shared func deleteCanister(): async* () {
+    let canister_id = Principal.fromText(canister_principal);
+    await ic.delete_canister({ canister_id });
+  };
+
+  // Test function to run through all canister operations
+  public shared func icManagementCanisterTest(): async { #OK; #ERR : Text } {
+    try {
+      await* createCanister("Test Canister", 10 ** 12, 1000, Principal.fromText("aaaaa-aa"));
+      await* canisterStatus();
+      await* depositCycles(10 ** 12);
+      await* updateSettings([Principal.fromText("aaaaa-aa")], 60 * 60 * 24 * 7);
+      await* uninstallCode();
+      await* stopCanister();
+      await* startCanister();
+      await* stopCanister();
+      await* deleteCanister();
+      return #OK;
+    } catch (e) {
+      return #ERR(Error.message(e));
+    }
+  };
 };
