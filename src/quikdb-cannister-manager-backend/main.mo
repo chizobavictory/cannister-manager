@@ -9,7 +9,7 @@ import Database "models/Database.module";
 import GroupItemStore "models/Item.module";
 import idGen "models/IdGen.module";
 import ErrorTypes "models/ErrorTypes.module";
-import CanisterInfo "models/CannisterInfo.module"
+import CanisterInfo "models/CanisterInfo.module"
 
 // Main actor managing canisters
 actor QuikDB {
