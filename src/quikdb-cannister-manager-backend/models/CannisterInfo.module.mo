@@ -1,11 +1,11 @@
-
+import Time "mo:base/Time";
 module {
   public type CanisterInfo = {
     id : Text;
-    owner : Text;
+    owner : Principal;
     memory : Nat;
     cycles : Nat;
-    created_at : Nat64;
+    created_at : Time.Time;
     allocated_to : ?Text;
   };
 };
